@@ -1,1 +1,2 @@
-Sample Code modifed to hide some funcalities and run time
+Sample Code modifed to hide some functionalities and run time.
+Demo purpose only
