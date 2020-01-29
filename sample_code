@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Oct  5 12:42:20 2018
+
+2018 ACM_IPCP
+Jump on Crime
+
+@author: yin
+"""
+import time
+from bresenham import bresenham
+import math
+import statistics as stat
+import numpy as np
+
+class city_grid:
+    def __init__(self,input_file):
+        self.input_file = input_file
+        self.gravity = 9.80665
+
+    # get speicficadtions required for the program
+    def city_specificaiton(self):
+        file_data = open(self.input_file, "r")
+        specification = (file_data.readline()).split()
+        specification = [int(i) for i in specification]
+        return specification
+
+    # building city maps based on the input
+    # dy = y distance
+    # dx = x distance
+    # w = width
+    # return:
+    # building map = map of the building
+    # city_map = map of the city in coordinate
+    def city_map(self, dy, dx, w):
+        file_data = open(self.input_file, "r")
+        building_map = []
+        city_map = []
+        for i in range(dy):
+            temp_building = file_data.readline().split()
+            temp_building = [int(m) for m in temp_building]
+            building_map.append(temp_building)
+            temp_map = []
+            for j in range(dx):
+                temp_map.append([[j*w, j*w+w], [i*w, i*w+w]])
+            city_map.append(temp_map)
+        return building_map, city_map
+
+    # define location of the jumping based on the map and how far it jumps to
+    # city_map = map of the city
+    # city_building = a list of building
+    def jump_coordinate(self, city_map, city_building):
+        x = city_building[0]
+        y = city_building[1]
+        return city_map[y][x]
+
+    # calculate change in  height
+    # jump_from = location from jump start
+    # jump_to = location where jump end
+    def delta_height(self, jump_from, jump_to, uilding_map):
+        x1, y1 = jump_from
+        x2, y2 = jump_to
+        return building_map[y2][x2] - building_map[y1][x1]
+
+    # determine x and y location after jumping
+    def delta_coord(self,jump_from,jump_to,city_map):
+        jump_from_building = self.jump_coordinate(city_map, jump_from)
+        jump_to_building = self.jump_coordinate(city_map, jump_to)
+        x1, y1 = stat.mean(jump_from_building[0]), stat.mean(jump_from_building[1])
+        x2, y2 = stat.mean(jump_to_building[0]), stat.mean(jump_to_building[1])
+        return x1, x2, y1, y2
+
+    # get the distance of traveling
+    # the input will be from output of delta_coord function
+    def delta_dist(self,x1, x2, y1, y2):
+        return math.sqrt(math.pow((x1-x2), 2)+math.pow((y1-y2), 2))
+
+    # determine time, distance and result of the jump
+    def a_jump(self, v, jump_from, jump_to, city_map, building_map):
+        height = self.delta_height(jump_from, jump_to, building_map)
+        x1, x2, y1, y2 = self.delta_coord(jump_from, jump_to, city_map)
+        d = self.delta_dist(x1, x2, y1, y2)
+        c = 1/2*self.gravity*d*d/(v*v)+height
+        b = -d
+        a = 1/2*self.gravity*d*d/(v*v)
+        try:
+            angle = math.atan((-b - math.sqrt(b*b-(4*a*c))) / (2*a))
+        except ValueError:
+            angle = 0
+        time = d/(v*math.cos(angle))
+        return d, time, angle
+
+    # get actual jump time
+    def jump_duration(self, d, v, angle):
+        return d/(v*math.cos(angle))
+
+    # get height of the jump at any given time and angle
+    def jump_height(self, t, v, angle):
+        return v*math.sin(angle)*t - (1/2*self.gravity*t*t)
+
+    # check if the jump is possible
+    def is_a_jump_possible(self, w, v, jump_from, jump_to, city_map, building_map):
+        d, time, angle = self.a_jump(v, jump_from, jump_to, city_map, building_map)
+        if angle == 0:
+            return False
+        jump_cross, crossing_height,ed = self.crossing(w, city_map, jump_from, jump_to, building_map)
+        for i in range(len(CrossHeight)):
+            jump_time = self.jump_duration(ed[i], v, angle)
+            delta_height = self.jump_height(jump_time, v, angle)
+            if delta_height <= CrossHeight[i]:
+                return False
+        return True
+
+    # determine if the jump lands on top of the building and the jumping height required
+    def crossing(self, w, city_map, jump_from, jump_to, building_map):
+        x1, y1 = jump_from
+        x2, y2 = jump_to
+        adjuster = building_map[y1][x1]
+        crossing_height = []
+        jump_list = list(bresenham(x1, y1, x2, y2))
+        edge_distance = self.edge_distance(w, jumpList, city_map, jump_from, jump_to, building_map)
+        # if jumps back and forth
+        if x1 == x2 or y1 == y2:
+            for i in range(len(jump_list)-1):
+                x3, y3 = jump_list[i]
+                x4, y4 = jump_list[i+1]
+                crossing_height.append((max(building_map[y3][x3]-adjuster, building_map[y4][x4]-adjuster)))
+        else:
+            #check for every other jump based on the jump list
+            for i in range(len(jumpList)-1):
+                x3, y3 = jumpList[i]
+                x4, y4 = jumpList[i+1]
+                try:
+                    slope = (y4-y3)/(x4-x3)
+                except:
+                    slope = 0
+                dx = x4-x3 
+                dy = y4-y3
+                if abs(slope) == 1:
+                    crossing_height.append((max(building_map[y3][x3]-adjuster, building_map[y4][x4]-adjuster,
+                                                building_map[y3+dy][x3]-adjuster, building_map[y3][x3+dx]-adjuster)))
+                else:
+                    crossing_height.append((max(building_map[y3][x3]-adjuster, building_map[y4][x4]-adjuster)))
+        return jump_list, crossing_height, edge_distance
+
+    # determine the edge distance
+    def edge_distance(self,w, city_map,jump_from,jump_to):
+        jump_from = self.jump_coordinate(city_map,jump_from)
+        jump_to = self.jump_coordinate(city_map,jump_to)
+        x1, y1 = stat.mean(jump_from[0]), stat.mean(jump_from[1])
+        x2, y2 = stat.mean(jump_to[0]), stat.mean(jump_to[1])
+        edge_distance = []
+        try:
+            slope = (y2-y1)/(x2-x1)
+        except:
+            slope = 0
+        b = slope * (-x2) + y2
+
+        # get all x distance
+        for i in range(min(x1, x2), max(x1, x2), w):
+            y = slope*(i+w/2) + b
+            cal_distance = math.sqrt(math.pow((i+w/2)-x1,2) + math.pow((y-y1),2))
+            edge_distance.append(cal_distance)
+
+        # get all y distance
+        for j in range (min(y1, y2), max(y1, y2), w):
+            if slope == 0:
+                x = x1
+            else:
+                x = (j+w/2-b) / slope
+            cal_distance = math.sqrt(math.pow(x-x1,2) + math.pow((j+w/2)-y1,2))
+            edge_distance.append(cal_distance)
+        edge_distance = sorted(set(edge_distance))
+        return edge_distance
+
+    # helper function to provide collect possible solutions
+    def solver(self, w, v, jump_from, jump_to, city_map, building_map, solution):
+        if jump_to == jump_from:
+            solution[jump_to[1]][jump_to[0]] = 0
+        else:
+            if self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map) == True:
+                solution[jump_to[1]][jump_to[0]] = 1
+            else:
+                self.solver(w, v, jump_from, jump_to, city_map, building_map, solution)
+    
+    def run(self):
+        dx, dy, w, v, lx, ly = self.city_specificaiton()
+        solution = np.zeros(shape=(dy, dx)).astype(object)
+        solved = np.zeros(shape=(dy, dx)).astype(object)
+        building_map, city_map = self.city_map(dy, dx, w)
+
+        #going north
+        #lx = x coord of hidout
+        #ly = y coord of hidout
+        #l1 = going left on the city map
+        #rl = going right on the city map
+        #ul = going up on the city map
+        #dl = going down on the city map
+        lx, ly, dx, dy = lx-1, ly-1, dx-1, dy-1
+        l1 = 0 - lx
+        r1 = dx - lx
+        u1 = 0 - ly
+        d1 = dy - ly
+
+        #check how far from hidout
+        if (u1-d1) == 0:
+            for j in range(l1, r1+1):
+                marker = False
+                x1, y1 = lx+j, ly
+                jump_from = [lx, ly]
+                jump_to = [x1, y1]
+                jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map)
+                if jump_to == jump_from:
+                    solution[y1][x1] = "NA"
+                    solved[y1][x1] = "hideout"
+                else:
+                    if jump_result:
+                        solution[y1][x1] = 1
+                        solved[y1][x1] = lx, ly
+                    else:   
+                        l2 = 0 - x1
+                        r2 = dx - x1
+                        for n in range(l2, r2+1):
+                            x2, y2 = x1+n, y1
+                            if solved[y2, x2] != 0 and marker == False:
+                                jump_from = [x2, y2]
+                                jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map)
+                                if jump_to == jump_from:
+                                    pass
+                                else:
+                                    if jump_result:
+                                        solution[y1][x1] = solution[y2][x2] + 1
+                                        solved[y1][x1] = x2,y2
+                                        marker = True
+        elif (l1-r1) == 0:
+            for i in range(u1, d1+1):
+                marker = False
+                x1, y1 = lx, ly+i
+                jump_from = [lx, ly]
+                jump_to = [x1, y1]
+                jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map)
+                if jump_to == jump_from:
+                    solution[y1][x1] = "NA"
+                    solved[y1][x1] = "hideout"
+                else:
+                    if jump_result:
+                        solution[y1][x1] = 1
+                        solved[y1][x1] = lx,ly
+                    else:   
+                        u2 = 0 - y1
+                        d2 = dy - y1
+                        for m in range(u2, d2+1):
+                            x2, y2 = x1, y1+m
+                            if solved[y2, x2] !=0 and marker == False:
+                                jump_from = [x2, y2]
+                                jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map)
+                                if jump_to == jump_from:
+                                    pass
+                                else:
+                                    if jump_result:
+                                        solution[y1][x1] = solution[y2][x2] + 1
+                                        solved[y1][x1] = x2,y2
+                                        marker = True  
+        else: 
+            for i in range (u1,d1+1):
+                for j in range (l1,r1+1):
+                    marker = False
+                    x1,y1 = lx+j,ly+i
+                    jump_from = [lx,ly]
+                    jump_to = [x1,y1]
+                    jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map, building_map)
+                    if jump_to == jump_from:
+                        solution[y1][x1] = "na"
+                        solved[y1][x1] = "hideout"
+
+                    else:
+                        if jump_result:
+                            solution[y1][x1] = 1
+                            solved[y1][x1] = lx, ly
+                        else:
+                            l2 = 0 - x1
+                            r2 = dx - x1
+                            u2 = 0 - y1
+                            d2 = dy - y1
+                            for m in range(u2, d2+1):
+                                for n in range(l2, r2+1):
+                                    x2, y2 = x1+n, y1+m
+                                    if solved[y2, x2] !=0 and marker == False:
+                                        jump_from = [x2, y2]
+                                        jump_result = self.is_a_jump_possible(w, v, jump_from, jump_to, city_map,
+                                                                              building_map)
+                                        if jump_to == jump_from:
+                                            pass
+                                        else:
+                                            if jump_result:
+                                                solution[y1][x1] = solution[y2][x2] + 1
+                                                solved[y1][x1] = x2, y2
+                                                marker = True
+        solved[solved == 0] = "NA"
+        solution[solution == 0] = 'x'
+        solution[solution == "NA"] = 0
+        return dx, dy, solution, solved
+
+    # Print a map as a parit of key:value
+    # each key is the final jump point, the values of each key is the path where been jumped
+    def overall_jumps (self, solution, solved):
+        print ("\nfinal results")
+        maps = {}
+        tries = 11
+        for i in range(tries):
+            for j in range(tries):
+                k = solution[i][j]
+                if k == 0:   
+                    key = (i, j)
+                    maps[key] = "hideout"
+                elif k == "x":
+                    key = (i, j)
+                    print (key)
+                    maps[key] = "not possible"
+                else:
+                    key = (i, j)
+                    value = solved[i][j]
+                    values = [value]
+                    while k > 1:
+                        m, n = value
+                        values.append(solved[n][m])
+                        value = solved[m][n]
+                        k = k-1
+                        values.reverse()
+                    maps[key] = values
+
+        print("\njumping path to each building")
+        print(maps)
+
+
+# run = city_grid(input_var)
+# dx,dy,solution,solved = run.run()
+# run.overall_jumps(dx,dy,solution,solved)
